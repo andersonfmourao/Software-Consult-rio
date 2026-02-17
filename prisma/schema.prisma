@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  RECEPCAO
+}
+
+enum AtendimentoCategoria {
+  AVALIACAO
+  LIMPEZA
+  IMPLANTE
+  PROTESE
+  OUTROS
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  role         Role
+  passwordHash String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  auditLogs    AuditLog[]
+}
+
+model Paciente {
+  id                String        @id @default(cuid())
+  nomeCompleto      String
+  telefoneWhatsapp  String
+  email             String?
+  dataNascimento    DateTime?
+  observacoes       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  atendimentos      Atendimento[]
+}
+
+model Atendimento {
+  id          String               @id @default(cuid())
+  pacienteId  String
+  paciente    Paciente             @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  dataHora    DateTime
+  categoria   AtendimentoCategoria
+  descricao   String
+  valor       Decimal?             @db.Decimal(10, 2)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  anexos      Anexo[]
+
+  @@index([pacienteId, dataHora])
+}
+
+model Anexo {
+  id             String       @id @default(cuid())
+  atendimentoId  String
+  atendimento    Atendimento  @relation(fields: [atendimentoId], references: [id], onDelete: Cascade)
+  fileName       String
+  mimeType       String
+  size           Int
+  url            String
+  createdAt      DateTime     @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String
+  diff       Json
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
