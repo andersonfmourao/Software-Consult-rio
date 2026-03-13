@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DENTISTA
+  SECRETARIA
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  CONFIRMADO
+  FINALIZADO
+  CANCELADO
+}
+
+enum TaskStatus {
+  PENDENTE
+  CONCLUIDA
+}
+
+enum DocumentType {
+  PDF
+  IMAGEM
+  TERMO
+}
+
+enum TreatmentStatus {
+  PLANEJADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+model User {
+  id                     String        @id @default(cuid())
+  name                   String
+  email                  String        @unique
+  passwordHash           String
+  role                   Role
+  appointments           Appointment[] @relation("DentistAppointments")
+  createdAppointments    Appointment[] @relation("CreatedByAppointments")
+  tasks                  Task[]
+  prontuariosCriados     Prontuario[]  @relation("ProntuarioCreatedBy")
+  tratamentosExecutados  Tratamento[]  @relation("TreatmentDentist")
+  documentosEnviados     Document[]    @relation("DocumentUploadedBy")
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+}
+
+model Patient {
+  id                 String          @id @default(cuid())
+  fullName           String
+  cpf                String          @unique
+  phone              String
+  birthDate          DateTime
+  address            String
+  notes              String?
+  appointments       Appointment[]
+  prontuario         Prontuario?
+  tratamentos        Tratamento[]
+  procedures         Procedure[]
+  treatmentPlans     TreatmentPlan[]
+  clinicalEvolutions ClinicalEvolution[]
+  documents          Document[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model Appointment {
+  id           String            @id @default(cuid())
+  patientId    String
+  dentistId    String
+  createdById  String?
+  prontuarioId String?
+  startsAt     DateTime
+  endsAt       DateTime
+  status       AppointmentStatus @default(AGENDADO)
+  notes        String?
+  patient      Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  dentist      User              @relation("DentistAppointments", fields: [dentistId], references: [id], onDelete: Restrict)
+  createdBy    User?             @relation("CreatedByAppointments", fields: [createdById], references: [id], onDelete: SetNull)
+  prontuario   Prontuario?       @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now())
+
+  @@index([patientId, startsAt])
+  @@index([dentistId, startsAt])
+}
+
+model Prontuario {
+  id               String        @id @default(cuid())
+  patientId        String        @unique
+  createdById      String?
+  anamnese         String?
+  alergias         String?
+  medicamentosUso  String?
+  observacoes      String?
+  patient          Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdBy        User?         @relation("ProntuarioCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  consultas        Appointment[]
+  tratamentos      Tratamento[]
+  documentos       Document[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Tratamento {
+  id              String          @id @default(cuid())
+  patientId       String
+  prontuarioId    String?
+  dentistId       String?
+  nome            String
+  descricao       String?
+  custoEstimado   Decimal?        @db.Decimal(10, 2)
+  status          TreatmentStatus @default(PLANEJADO)
+  dataInicio      DateTime?
+  dataConclusao   DateTime?
+  patient         Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prontuario      Prontuario?     @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
+  dentist         User?           @relation("TreatmentDentist", fields: [dentistId], references: [id], onDelete: SetNull)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([patientId, status])
+}
+
+model Procedure {
+  id          String   @id @default(cuid())
+  patientId   String
+  title       String
+  description String?
+  performedAt DateTime
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model TreatmentPlan {
+  id          String   @id @default(cuid())
+  patientId   String
+  description String
+  status      String
+  createdAt   DateTime @default(now())
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model ClinicalEvolution {
+  id        String   @id @default(cuid())
+  patientId String
+  notes     String
+  evolvedAt DateTime @default(now())
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  title        String
+  dueDate      DateTime
+  status       TaskStatus @default(PENDENTE)
+  assignedToId String?
+  assignedTo   User?      @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+}
+
+model Document {
+  id            String       @id @default(cuid())
+  patientId     String
+  prontuarioId  String?
+  uploadedById  String?
+  title         String
+  type          DocumentType
+  fileUrl       String
+  uploadedAt    DateTime     @default(now())
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prontuario    Prontuario?  @relation(fields: [prontuarioId], references: [id], onDelete: SetNull)
+  uploadedBy    User?        @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, uploadedAt])
+}
